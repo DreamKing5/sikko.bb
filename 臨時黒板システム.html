@@ -1,0 +1,393 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>臨時黒板システム</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&display=swap">
+<style>
+/* 黒板一枚。上部にヘッダー(タップ対象)、その下にスレッドが積み上がり、常に最下端を表示する */
+:root {
+  --board: #2b5946;
+  --board-deep: #1d4233;
+  --chalk: #f2f1e9;
+  --chalk-yellow: #f3e28c;
+  --chalk-line: rgba(242, 241, 233, 0.9);
+  --font-chalk: "BIZ UDGothic", "MS Gothic", "Osaka-Mono", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", monospace;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  box-sizing: border-box;
+  background:
+    radial-gradient(120% 80% at 28% 12%, rgba(255, 255, 255, 0.08), transparent 60%),
+    radial-gradient(100% 70% at 82% 96%, rgba(0, 0, 0, 0.26), transparent 65%),
+    var(--board);
+  color: var(--chalk);
+  font-family: var(--font-chalk);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.app { height: 100%; display: flex; flex-direction: column; }
+
+#head {
+  flex: none;
+  text-align: center;
+  padding: 7px 0 6px;
+  border-bottom: 2px solid var(--chalk-line);
+  border-radius: 0 0 4px 3px / 0 0 3px 2px;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+#head:active { opacity: 0.6; }
+#head:focus-visible { outline: 2px dashed var(--chalk-yellow); outline-offset: -6px; }
+#head h1 {
+  margin: 0;
+  font-weight: 500;
+  font-size: clamp(18px, 2.4vw, 26px);
+  line-height: 1.3;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+#board {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 4px 28px;
+}
+.thread {
+  flex: none;
+  box-sizing: border-box;
+  border: 3px solid var(--chalk-line);
+  border-radius: 7px 11px 8px 10px / 10px 7px 11px 8px;
+  padding: 16px 26px 18px;
+  cursor: pointer;
+}
+.thread.fresh { animation: chalk-in 0.22s ease-out both; }
+.thread p {
+  margin: 0 0 8px;
+  font-size: clamp(18px, 2.3vw, 28px);
+  color: var(--chalk-yellow);
+  letter-spacing: 0.04em;
+}
+.thread h3 {
+  margin: 0;
+  font-weight: 500;
+  font-size: clamp(26px, 3.7vw, 46px);
+  line-height: 1.5;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.35);
+}
+@keyframes chalk-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* クリップボードを直接読めないときだけ出る貼り付けパネル */
+#paste {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  background: var(--board-deep);
+  border: 3px solid var(--chalk-line);
+  border-radius: 9px 12px 9px 11px / 11px 9px 12px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 5;
+}
+#paste label { font-size: 16px; color: var(--chalk-yellow); }
+#pasteBox {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 96px;
+  resize: none;
+  font: inherit;
+  font-size: 18px;
+  color: var(--chalk);
+  background: rgba(0, 0, 0, 0.18);
+  border: 2px dashed rgba(242, 241, 233, 0.55);
+  border-radius: 6px;
+  padding: 10px 12px;
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+#pasteBox:focus { outline: 2px solid var(--chalk-yellow); }
+.row { display: flex; gap: 10px; justify-content: flex-end; }
+.row button {
+  font: inherit;
+  font-size: 18px;
+  color: var(--chalk);
+  background: transparent;
+  border: 2px solid var(--chalk-line);
+  border-radius: 6px;
+  padding: 8px 22px;
+  min-height: 44px;
+}
+.row button.primary { background: var(--chalk); color: var(--board-deep); }
+.row button:focus-visible { outline: 2px dashed var(--chalk-yellow); outline-offset: 2px; }
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  max-width: calc(100% - 48px);
+  padding: 10px 20px;
+  font-size: 18px;
+  color: var(--chalk);
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 6;
+}
+#toast.show { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .thread.fresh { animation: none; }
+  #toast, #head { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header id="head" role="button" tabindex="0" aria-label="クリップボードの内容を追加">
+    <h1>臨時黒板システム</h1>
+  </header>
+  <main id="board" aria-live="polite"></main>
+</div>
+
+<div id="paste" hidden>
+  <label for="pasteBox" id="pasteLabel">貼り付け</label>
+  <textarea id="pasteBox" placeholder="ここを長押しして「ペースト」"></textarea>
+  <div class="row">
+    <button type="button" id="pasteCancel">やめる</button>
+    <button type="button" id="pasteOk" class="primary">反映</button>
+  </div>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var DOUBLE_TAP_MS = 280;
+  var HISTORY_MAX = 200;
+
+  var board = document.getElementById('board');
+  var head = document.getElementById('head');
+  var panel = document.getElementById('paste');
+  var box = document.getElementById('pasteBox');
+  var label = document.getElementById('pasteLabel');
+  var toastEl = document.getElementById('toast');
+
+  var threads = [];
+  var history = [];
+  var seq = 0;
+  var tapTimer = null;
+  var busy = false;
+  var pasteTarget = null;
+  var toastTimer = null;
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2200);
+  }
+
+  // 1行目 = 名前(p) / 2行目以降 = 本文(h3)
+  function parse(text) {
+    var lines = text.replace(/\r\n?/g, '\n').split('\n')
+      .map(function (s) { return s.trim(); })
+      .filter(function (s) { return s.length > 0; });
+    if (!lines.length) return null;
+    seq += 1;
+    return { id: seq, name: lines[0], body: lines.slice(1).join('\n') };
+  }
+
+  function toBottom() {
+    board.scrollTop = board.scrollHeight;
+    requestAnimationFrame(function () { board.scrollTop = board.scrollHeight; });
+  }
+
+  function render(freshId) {
+    board.textContent = '';
+    threads.forEach(function (t) {
+      var a = document.createElement('article');
+      a.className = 'thread' + (t.id === freshId ? ' fresh' : '');
+      a.dataset.id = String(t.id);
+      var p = document.createElement('p');
+      p.textContent = t.name;
+      a.appendChild(p);
+      if (t.body) {
+        var h = document.createElement('h3');
+        h.textContent = t.body;
+        a.appendChild(h);
+      }
+      board.appendChild(a);
+    });
+    toBottom();
+  }
+
+  function pushHistory(entry) {
+    history.push(entry);
+    if (history.length > HISTORY_MAX) history.shift();
+  }
+
+  function indexOfId(id) {
+    for (var i = 0; i < threads.length; i++) if (threads[i].id === id) return i;
+    return -1;
+  }
+
+  function apply(text, target) {
+    var t = parse(text);
+    if (!t) { toast('クリップボードが空です'); return; }
+    if (target.type === 'add') {
+      threads.push(t);
+      pushHistory({ type: 'add', id: t.id });
+    } else {
+      var i = indexOfId(target.id);
+      if (i < 0) return;
+      var old = threads[i];
+      threads[i] = t;
+      pushHistory({ type: 'replace', id: t.id, old: old });
+    }
+    render(t.id);
+  }
+
+  function undo() {
+    var h = history.pop();
+    if (!h) return;
+    var i = indexOfId(h.id);
+    if (i < 0) return;
+    if (h.type === 'add') {
+      threads.splice(i, 1);
+      render(null);
+    } else {
+      threads[i] = h.old;
+      render(h.old.id);
+    }
+  }
+
+  function openPaste(target) {
+    pasteTarget = target;
+    label.textContent = target.type === 'add'
+      ? 'クリップボードを読み取れませんでした。末尾に追加する内容を貼り付けてください'
+      : 'クリップボードを読み取れませんでした。入れ替える内容を貼り付けてください';
+    box.value = '';
+    panel.hidden = false;
+  }
+
+  function closePaste() {
+    panel.hidden = true;
+    box.blur();
+    pasteTarget = null;
+  }
+
+  function submitPaste(text) {
+    if (!text || !text.trim()) { toast('内容が空です'); return; }
+    var target = pasteTarget;
+    closePaste();
+    if (target) apply(text, target);
+  }
+
+  function trigger(target) {
+    if (busy) return;
+    busy = true;
+    var done = function () { busy = false; };
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      openPaste(target);
+      done();
+      return;
+    }
+    navigator.clipboard.readText().then(function (text) {
+      apply(text || '', target);
+      done();
+    }, function () {
+      openPaste(target);
+      done();
+    });
+  }
+
+  // 1タップ = 追加/入れ替え、2タップ = 取り消し。
+  // 2回目のタップを待つため、1タップの処理は少し遅らせて実行する。
+  document.addEventListener('click', function (e) {
+    if (!panel.hidden || busy) return;
+    if (tapTimer !== null) {
+      clearTimeout(tapTimer);
+      tapTimer = null;
+      undo();
+      return;
+    }
+    var onHead = !!e.target.closest('#head');
+    var thread = e.target.closest('.thread');
+    var id = thread ? Number(thread.dataset.id) : null;
+    tapTimer = setTimeout(function () {
+      tapTimer = null;
+      if (onHead) trigger({ type: 'add' });
+      else if (id !== null) trigger({ type: 'replace', id: id });
+    }, DOUBLE_TAP_MS);
+  });
+
+  head.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      trigger({ type: 'add' });
+    }
+  });
+
+  box.addEventListener('paste', function (e) {
+    var d = e.clipboardData || window.clipboardData;
+    var text = d ? d.getData('text') : '';
+    if (!text) return;
+    e.preventDefault();
+    submitPaste(text);
+  });
+  document.getElementById('pasteOk').addEventListener('click', function () { submitPaste(box.value); });
+  document.getElementById('pasteCancel').addEventListener('click', closePaste);
+
+  // 右クリック・ピンチ拡大・ドラッグを禁止
+  document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+  document.addEventListener('dragstart', function (e) { e.preventDefault(); });
+
+  window.addEventListener('resize', toBottom);
+  window.addEventListener('orientationchange', toBottom);
+})();
+</script>
+</body>
+</html>
+
+</body></html>
